@@ -1,12 +1,11 @@
 # scripts/roi_picker.py
-# Interactive ROI picker - supports multiple versions per channel
+# Interactive ROI picker - supports platform/channel/year combinations
 
 import cv2
 import json
 import argparse
 from pathlib import Path
 
-rois = {}
 current_label = ""
 drawing = False
 start_x, start_y = -1, -1
@@ -33,23 +32,21 @@ def mouse_callback(event, x, y, flags, param):
         print(f"  [{current_label}] -> {rect}")
 
 
-def pick_rois(frame_path: str, channel: str, labels: list[str]) -> dict:
-    global img_orig, img_display, current_label
+def pick_rois(frame_path: str, labels: list[str], meta: dict) -> dict:
+    global img_orig, img_display, current_label, rect
 
     img_orig = cv2.imread(frame_path)
     assert img_orig is not None, f"Cannot read: {frame_path}"
     img_display = img_orig.copy()
 
     h, w = img_orig.shape[:2]
-
     cv2.namedWindow("ROI Picker")
     cv2.setMouseCallback("ROI Picker", mouse_callback)
 
-    result = {"channel": channel, "frame_resolution": {"w": w, "h": h}}
+    result = {**meta, "frame_resolution": {"w": w, "h": h}}
 
     for label in labels:
         current_label = label
-        global rect
         rect = None
         print(f"\nDraw ROI for [{label}], then press ENTER. Press 'r' to redo.")
 
@@ -70,32 +67,69 @@ def pick_rois(frame_path: str, channel: str, labels: list[str]) -> dict:
     return result
 
 
+# Valid platforms and their allowed content types
+VALID_PLATFORMS = {
+    "tving": ["game_highlight"],
+    "kbo": ["game_highlight"],
+}
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--frame", required=True, help="Sample frame image path")
     parser.add_argument(
-        "--channel", required=True, help="Channel name (kbs/mbc/sbs/spotv)"
+        "--platform",
+        required=True,
+        choices=list(VALID_PLATFORMS.keys()),
+        help="Platform (tving/kbo)",
     )
-    # Mutually exclusive: use --year OR --version
-    group = parser.add_mutually_exclusive_group(required=True)
-    group.add_argument("--year", type=int, help="Broadcast year (e.g. 2023)")
-    group.add_argument(
-        "--version", type=str, help="Layout version tag (e.g. v1, hd, widescreen)"
+    parser.add_argument(
+        "--year", required=True, type=int, help="Broadcast year (e.g. 2025)"
+    )
+    parser.add_argument(
+        "--content",
+        default="game_highlight",
+        help="Content type (default: game_highlight)",
+    )
+    parser.add_argument(
+        "--version", default=None, help="Optional sub-version tag (e.g. v2, widescreen)"
     )
     parser.add_argument("--out_dir", default="configs/channels")
     args = parser.parse_args()
 
+    # Validate content type for platform
+    if args.content not in VALID_PLATFORMS[args.platform]:
+        raise ValueError(
+            f"'{args.content}' is not valid for platform '{args.platform}'. "
+            f"Allowed: {VALID_PLATFORMS[args.platform]}"
+        )
+
     labels = ["batter_name_roi", "score_roi"]
-    data = pick_rois(args.frame, args.channel.upper(), labels)
 
-    # Build filename: kbs_2023.json or kbs_v2.json
-    tag = str(args.year) if args.year else args.version
-    data["tag"] = tag
-    data["logo_template"] = f"configs/channels/templates/{args.channel}_logo.png"
-    data["notes"] = f"Coordinates for {args.channel.upper()} [{tag}]"
+    # e.g. tving_2025_game_highlight or tving_2025_game_highlight_v2
+    config_id = f"{args.platform}_{args.year}_{args.content}"
+    if args.version:
+        config_id += f"_{args.version}"
 
-    out_path = Path(args.out_dir) / args.channel.lower() / f"{tag}.json"
+    meta = {
+        "config_id": config_id,
+        "platform": args.platform,
+        "year": args.year,
+        "content": args.content,
+        "version": args.version,
+        "logo_template": f"configs/channels/templates/{args.platform}_logo.png",
+        "notes": f"ROI for {config_id}",
+    }
+
+    data = pick_rois(args.frame, labels, meta)
+
+    # Save to configs/channels/{platform}/{year}_{content}.json
+    filename = f"{args.year}_{args.content}"
+    if args.version:
+        filename += f"_{args.version}"
+    out_path = Path(args.out_dir) / args.platform / f"{filename}.json"
     out_path.parent.mkdir(parents=True, exist_ok=True)
+
     with open(out_path, "w") as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
 
