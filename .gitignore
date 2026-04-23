@@ -1,0 +1,15 @@
+data/
+outputs/
+*.mp4
+*.avi
+*.mov
+__pycache__/
+.env
+*.pyc
+
+venv
+
+.claude
+.serena
+
+hitting_analysis_plan

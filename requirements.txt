@@ -1,0 +1,18 @@
+# video ingestion
+yt-dlp
+
+# computer vision
+opencv-python
+paddlepaddle
+paddleocr
+ultralytics        # YOLOv8-Pose
+
+# clustering & analysis
+numpy
+pandas
+scipy
+tslearn             # DTW
+
+# utils
+tqdm
+python-dotenv
