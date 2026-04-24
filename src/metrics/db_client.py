@@ -1,10 +1,18 @@
 import os
+import re
+import threading
+import logging
 import contextlib
 from dotenv import load_dotenv
 
 load_dotenv()
+logger = logging.getLogger(__name__)
 
 _DB_URL = os.environ.get("DB_URL")
+_pool = None
+_pool_lock = threading.Lock()
+
+_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 _WOBA_QUERY = """
 SELECT
@@ -36,14 +44,34 @@ SELECT player_code FROM player WHERE player_name = %s LIMIT 1;
 """
 
 
+def _get_pool():
+    global _pool
+    if _pool is None:
+        with _pool_lock:
+            if _pool is None:
+                import psycopg2.pool
+                logger.info("Initializing DB connection pool...")
+                _pool = psycopg2.pool.SimpleConnectionPool(
+                    minconn=1,
+                    maxconn=5,
+                    dsn=_DB_URL,
+                    connect_timeout=10,
+                )
+                logger.info("DB connection pool ready.")
+    return _pool
+
+
 @contextlib.contextmanager
 def _connect():
-    import psycopg2
-    conn = psycopg2.connect(_DB_URL)
+    pool = _get_pool()
+    conn = pool.getconn()
     try:
         yield conn
+    except Exception:
+        conn.rollback()
+        raise
     finally:
-        conn.close()
+        pool.putconn(conn)
 
 
 def get_player_code(player_name: str) -> str | None:
@@ -56,7 +84,7 @@ def get_player_code(player_name: str) -> str | None:
                 row = cur.fetchone()
                 return str(row[0]) if row else None
     except Exception as e:
-        print(f"[db_client] player_code lookup failed: {e}")
+        logger.error(f"player_code lookup failed for '{player_name}': {e}")
         return None
 
 
@@ -71,12 +99,16 @@ def get_woba_stats(game_date: str, player_code: str) -> dict | None:
     """
     if not _DB_URL:
         return None
+    if not _DATE_RE.match(game_date):
+        logger.error(f"Invalid game_date format '{game_date}', expected YYYY-MM-DD")
+        return None
     try:
         with _connect() as conn:
             with conn.cursor() as cur:
                 cur.execute(_WOBA_QUERY, (player_code, game_date))
                 row = cur.fetchone()
                 if row is None:
+                    logger.info(f"No wOBA stats for player={player_code} date={game_date}")
                     return None
                 woba_roll10, woba_cumul, pa_game, lg_woba, game_seq = row
                 return {
@@ -87,5 +119,5 @@ def get_woba_stats(game_date: str, player_code: str) -> dict | None:
                     "early_season": int(game_seq) < 10,
                 }
     except Exception as e:
-        print(f"[db_client] woba_stats query failed: {e}")
+        logger.error(f"woba_stats query failed for player={player_code} date={game_date}: {e}")
         return None

@@ -1,9 +1,14 @@
+import logging
 import numpy as np
+
 from src.pose.keypoint_schema import (
     NOSE, L_SHOULDER, R_SHOULDER, L_HIP, R_HIP, L_WRIST, R_WRIST,
 )
+from src.config.params import PoseEstimationParams
 
-_CONF_THRESHOLD = 0.3
+logger = logging.getLogger(__name__)
+
+_CONF_THRESHOLD = PoseEstimationParams().kp_conf_threshold
 
 
 def _valid(kp: np.ndarray, idx: int) -> bool:
@@ -32,9 +37,7 @@ def calc_hip_rotation(kp: np.ndarray) -> float | None:
 
 def calc_head_stability(kp_seq: list[np.ndarray]) -> float | None:
     """Std-dev of nose position (pixels) across a sequence of keypoint frames."""
-    positions = [
-        kp[NOSE, :2] for kp in kp_seq if _valid(kp, NOSE)
-    ]
+    positions = [kp[NOSE, :2] for kp in kp_seq if _valid(kp, NOSE)]
     if len(positions) < 2:
         return None
     arr = np.array(positions)
@@ -49,17 +52,13 @@ def calc_wrist_trajectory(kp_seq: list[np.ndarray]) -> list[list[float]]:
     l_confs = [kp[L_WRIST, 2] for kp in kp_seq]
     r_confs = [kp[R_WRIST, 2] for kp in kp_seq]
     idx = L_WRIST if np.mean(l_confs) >= np.mean(r_confs) else R_WRIST
-    return [
-        kp[idx, :2].tolist()
-        for kp in kp_seq
-        if kp[idx, 2] >= _CONF_THRESHOLD
-    ]
+    return [kp[idx, :2].tolist() for kp in kp_seq if kp[idx, 2] >= _CONF_THRESHOLD]
 
 
-def calc_swing_timing(swing_frames: list[int], seg_start: int) -> int:
-    """Frame offset of first swing relative to segment start. -1 if no swing."""
+def calc_swing_timing(swing_frames: list[int], seg_start: int) -> int | None:
+    """Frame offset of first swing relative to segment start. None if no swing."""
     if not swing_frames:
-        return -1
+        return None
     return swing_frames[0] - seg_start
 
 
@@ -72,11 +71,20 @@ def compute_segment_metrics(
     Compute all metrics for a single segment.
     kp_map: {frame_idx: ndarray(17,3)}
     """
+    if not kp_map:
+        logger.warning("compute_segment_metrics called with empty kp_map.")
+        return {
+            "shoulder_rotation_deg": None,
+            "hip_rotation_deg": None,
+            "head_stability_px": None,
+            "swing_timing_frame": calc_swing_timing(swing_frames, seg_start),
+            "wrist_trajectory": [],
+        }
+
     kp_seq = [kp_map[f] for f in sorted(kp_map)]
 
-    # Use keypoint at first swing frame for rotation angles; fallback to first available
-    anchor_frame = swing_frames[0] if swing_frames else (sorted(kp_map)[0] if kp_map else None)
-    anchor_kp = kp_map.get(anchor_frame) if anchor_frame is not None else None
+    anchor_frame = swing_frames[0] if swing_frames else sorted(kp_map)[0]
+    anchor_kp = kp_map.get(anchor_frame)
 
     return {
         "shoulder_rotation_deg": calc_shoulder_rotation(anchor_kp) if anchor_kp is not None else None,

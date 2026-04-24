@@ -1,20 +1,14 @@
+import logging
 import cv2
 import numpy as np
-from configs.settings import TARGET_NAME, GAP_TOLERANCE_SEC
-from src.utils.video import open_video
+
+from configs.settings import TARGET_NAME
+from src.utils.video import open_video, get_validated_fps
 from src.utils.types import Segment
+from src.models.model_manager import get_ocr
+from src.config.params import OcrExtractionParams
 
-_ocr = None
-
-
-def _get_ocr():
-    global _ocr
-    if _ocr is None:
-        import os
-        os.environ["FLAGS_use_mkldnn"] = "0"
-        from paddleocr import PaddleOCR
-        _ocr = PaddleOCR(use_textline_orientation=True, lang="korean", enable_mkldnn=False)
-    return _ocr
+logger = logging.getLogger(__name__)
 
 
 def roi_to_xyxy(roi: dict) -> tuple[int, int, int, int]:
@@ -33,20 +27,28 @@ def ocr_contains_name(
 ) -> bool:
     """Return True if target name detected in batter_name_roi."""
     crop = crop_roi(frame, roi)
-    results = _get_ocr().predict(crop)
+    try:
+        results = get_ocr().predict(crop)
+    except Exception as e:
+        logger.warning(f"OCR predict failed: {e}")
+        return False
+
     if not results:
         return False
-    texts = results[0]["rec_texts"]
-    return any(target in t for t in texts)
+
+    first = results[0]
+    if not isinstance(first, dict) or "rec_texts" not in first:
+        logger.warning(f"Unexpected OCR result structure: {type(first)}")
+        return False
+
+    return any(target in t for t in first["rec_texts"])
 
 
 def extract_batter_segments(
     video_path: str,
     cfg: dict,
     target_name: str = TARGET_NAME,
-    sample_fps: int = 2,
-    ocr_delay_sec: float = 3.0,
-    gap_tolerance_sec: float = GAP_TOLERANCE_SEC,
+    params: OcrExtractionParams | None = None,
 ) -> list[Segment]:
     """
     Scan video; return segments where target batter is active.
@@ -54,13 +56,15 @@ def extract_batter_segments(
     ocr_delay_sec: rewinds segment start to compensate for batter appearing
                    before the name overlay renders.
     """
+    p = params or OcrExtractionParams()
+
     with open_video(video_path) as cap:
-        video_fps = cap.get(cv2.CAP_PROP_FPS)
+        video_fps = get_validated_fps(cap, video_path)
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
         roi = cfg["batter_name_roi"]
-        delay_frames = int(ocr_delay_sec * video_fps)
-        step = max(1, int(video_fps / sample_fps))
-        gap_frames = int(gap_tolerance_sec * video_fps)
+        delay_frames = int(p.ocr_delay_sec * video_fps)
+        step = max(1, int(video_fps / p.sample_fps))
+        gap_frames = int(p.gap_tolerance_sec * video_fps)
 
         segments: list[Segment] = []
         in_segment = False
@@ -72,6 +76,7 @@ def extract_batter_segments(
             cap.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)
             ret, frame = cap.read()
             if not ret:
+                logger.warning(f"Failed to read frame {frame_idx} from {video_path}")
                 break
 
             found = ocr_contains_name(frame, roi, target_name)
@@ -79,6 +84,7 @@ def extract_batter_segments(
                 if not in_segment:
                     seg_start = max(0, frame_idx - delay_frames)
                     in_segment = True
+                    logger.debug(f"Segment start at frame {seg_start}")
                 last_seen_frame = frame_idx
             elif in_segment and (frame_idx - last_seen_frame) > gap_frames:
                 segments.append(
@@ -88,6 +94,9 @@ def extract_batter_segments(
                         start_sec=seg_start / video_fps,
                         end_sec=last_seen_frame / video_fps,
                     )
+                )
+                logger.debug(
+                    f"Segment closed: {seg_start/video_fps:.1f}s~{last_seen_frame/video_fps:.1f}s"
                 )
                 in_segment = False
 
@@ -103,4 +112,5 @@ def extract_batter_segments(
                 )
             )
 
+    logger.info(f"OCR extraction: {len(segments)} segments found in {video_path}")
     return segments

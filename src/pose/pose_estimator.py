@@ -1,27 +1,33 @@
+import logging
 import cv2
 import numpy as np
+
 from src.utils.video import open_video
+from src.config.params import PoseEstimationParams
 
-_estimator = None
+logger = logging.getLogger(__name__)
 
-# Keypoints with visibility score below this are zeroed out.
-_KP_CONF_THRESHOLD = 0.3
-# Minimum overlap ratio (intersection / box area) to consider a person "in zone".
-_OVERLAP_THRESHOLD = 0.3
+_DEFAULT_PARAMS = PoseEstimationParams()
 
 
 def get_estimator() -> "YoloPoseEstimator":
-    global _estimator
-    if _estimator is None:
-        _estimator = YoloPoseEstimator()
-    return _estimator
+    """Return the thread-safe YoloPoseEstimator singleton via model_manager."""
+    from src.models.model_manager import get_pose_estimator
+    return get_pose_estimator()
 
 
 class YoloPoseEstimator:
-    def __init__(self, model_name: str = "yolov8m-pose.pt", conf: float = 0.5):
+    def __init__(
+        self,
+        model_name: str = _DEFAULT_PARAMS.model_name,
+        conf: float = _DEFAULT_PARAMS.conf,
+        params: PoseEstimationParams | None = None,
+    ):
         from ultralytics import YOLO
-        self._model = YOLO(model_name)
-        self._conf = conf
+        self._params = params or PoseEstimationParams(model_name=model_name, conf=conf)
+        logger.info(f"Loading YOLO model: {self._params.model_name}")
+        self._model = YOLO(self._params.model_name)
+        self._conf = self._params.conf
 
     def extract_keypoints(
         self,
@@ -32,7 +38,7 @@ class YoloPoseEstimator:
         """
         Run pose estimation on specified frames only.
         Returns {frame_idx: ndarray(17, 3)} where columns are (x, y, confidence).
-        Keypoints with confidence below _KP_CONF_THRESHOLD are zeroed out.
+        Keypoints with confidence below kp_conf_threshold are zeroed out.
         """
         if not frame_indices:
             return {}
@@ -42,14 +48,26 @@ class YoloPoseEstimator:
 
         with open_video(video_path) as cap:
             for idx in targets:
+                if idx < 0:
+                    logger.warning(f"Skipping negative frame index {idx}")
+                    continue
                 cap.set(cv2.CAP_PROP_POS_FRAMES, idx)
                 ret, frame = cap.read()
                 if not ret:
+                    logger.warning(f"Cannot read frame {idx} from {video_path}")
                     continue
-                kp = self._infer_frame(frame, batter_zone_roi)
+                try:
+                    kp = self._infer_frame(frame, batter_zone_roi)
+                except Exception as e:
+                    logger.error(f"Inference failed at frame {idx}: {e}")
+                    continue
                 if kp is not None:
                     result[idx] = kp
 
+        logger.info(
+            f"Keypoint extraction: {len(result)}/{len(targets)} frames succeeded "
+            f"for {video_path}"
+        )
         return result
 
     def _infer_frame(
@@ -65,17 +83,15 @@ class YoloPoseEstimator:
         if len(kp_data) == 0:
             return None
 
-        if len(kp_data) == 1:
-            chosen = 0
-        else:
-            chosen = _select_batter(boxes, zone_roi)
+        chosen = 0 if len(kp_data) == 1 else _select_batter(
+            boxes, zone_roi, self._params.overlap_threshold
+        )
 
         kp = kp_data[chosen].cpu().numpy()  # (17, 3)
         if kp.shape != (17, 3):
             return None
 
-        # Zero out low-confidence keypoints so downstream code can skip them.
-        kp[kp[:, 2] < _KP_CONF_THRESHOLD] = 0.0
+        kp[kp[:, 2] < self._params.kp_conf_threshold] = 0.0
         return kp
 
 
@@ -90,15 +106,13 @@ def _overlap_ratio(xyxy: np.ndarray, zx1: float, zy1: float, zx2: float, zy2: fl
     return np.where(box_area > 0, inter / box_area, 0.0)
 
 
-def _select_batter(boxes, zone_roi: dict | None) -> int:
+def _select_batter(boxes, zone_roi: dict | None, overlap_threshold: float) -> int:
     """Return index of the batter among YOLO detections.
 
     Strategy:
       1. If zone_roi given, keep only detections whose bounding box overlaps
-         the zone by at least _OVERLAP_THRESHOLD.
-      2. Among candidates, pick the largest bounding box — the batter is
-         closest to the camera and therefore largest (catcher/umpire are
-         farther away or partially occluded).
+         the zone by at least overlap_threshold.
+      2. Among candidates, pick the largest bounding box.
       3. If no detection passes the overlap threshold, fall back to the
          largest box across all detections.
     """
@@ -109,7 +123,7 @@ def _select_batter(boxes, zone_roi: dict | None) -> int:
         zx1, zy1 = float(zone_roi["x"]), float(zone_roi["y"])
         zx2, zy2 = zx1 + zone_roi["w"], zy1 + zone_roi["h"]
         overlaps = _overlap_ratio(xyxy, zx1, zy1, zx2, zy2)
-        in_zone = np.where(overlaps >= _OVERLAP_THRESHOLD)[0]
+        in_zone = np.where(overlaps >= overlap_threshold)[0]
         if len(in_zone) > 0:
             return int(in_zone[areas[in_zone].argmax()])
 
