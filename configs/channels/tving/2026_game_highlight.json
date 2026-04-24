@@ -1,0 +1,25 @@
+{
+  "config_id": "tving_2026_game_highlight",
+  "platform": "tving",
+  "year": 2026,
+  "content": "game_highlight",
+  "version": null,
+  "logo_template": "configs/channels/templates/tving_logo.png",
+  "notes": "ROI for tving_2026_game_highlight",
+  "frame_resolution": {
+    "w": 1920,
+    "h": 1080
+  },
+  "batter_name_roi": {
+    "x": 77,
+    "y": 212,
+    "w": 350,
+    "h": 38
+  },
+  "score_roi": {
+    "x": 77,
+    "y": 57,
+    "w": 351,
+    "h": 153
+  }
+}

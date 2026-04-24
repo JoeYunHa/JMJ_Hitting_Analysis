@@ -30,6 +30,7 @@ def mouse_callback(event, x, y, flags, param):
         rect = {"x": x1, "y": y1, "w": w, "h": h}
         cv2.rectangle(img_display, (start_x, start_y), (x, y), (0, 255, 0), 2)
         print(f"  [{current_label}] -> {rect}")
+        print(f"  DEBUG rect set: {rect}")  # debug
 
 
 def pick_rois(frame_path: str, labels: list[str], meta: dict) -> dict:
@@ -54,7 +55,9 @@ def pick_rois(frame_path: str, labels: list[str], meta: dict) -> dict:
             cv2.imshow("ROI Picker", img_display)
             key = cv2.waitKey(1) & 0xFF
 
-            if key == 13 and rect:
+            if key != 255:
+                print(f" DEBUG key={key}, rect={rect}")
+            if key in (10, 13) and rect:
                 result[label] = rect.copy()
                 img_orig = img_display.copy()
                 break

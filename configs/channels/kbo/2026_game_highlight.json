@@ -1,0 +1,25 @@
+{
+  "config_id": "kbo_2026_game_highlight",
+  "platform": "kbo",
+  "year": 2026,
+  "content": "game_highlight",
+  "version": null,
+  "logo_template": "configs/channels/templates/kbo_logo.png",
+  "notes": "ROI for kbo_2026_game_highlight",
+  "frame_resolution": {
+    "w": 1920,
+    "h": 1080
+  },
+  "batter_name_roi": {
+    "x": 77,
+    "y": 212,
+    "w": 349,
+    "h": 36
+  },
+  "score_roi": {
+    "x": 77,
+    "y": 55,
+    "w": 349,
+    "h": 157
+  }
+}
