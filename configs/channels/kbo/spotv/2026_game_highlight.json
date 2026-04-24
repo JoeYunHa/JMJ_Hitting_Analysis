@@ -1,0 +1,50 @@
+{
+  "config_id": "kbo_spotv_2026_game_highlight",
+  "platform": "kbo",
+  "channel": "spotv",
+  "year": 2026,
+  "content": "game_highlight",
+  "version": null,
+  "logo_template": "configs/channels/templates/spotv_logo.png",
+  "notes": "ROI for kbo_spotv_2026_game_highlight",
+  "frame_resolution": {
+    "w": 1920,
+    "h": 1080
+  },
+  "batter_name_roi": {
+    "x": 87,
+    "y": 199,
+    "w": 337,
+    "h": 39
+  },
+  "pitcher_name_roi": {
+    "x": 84,
+    "y": 162,
+    "w": 342,
+    "h": 36
+  },
+  "score_roi": {
+    "x": 88,
+    "y": 64,
+    "w": 158,
+    "h": 98
+  },
+  "count_roi": {
+    "x": 343,
+    "y": 61,
+    "w": 81,
+    "h": 57
+  },
+  "base_roi": {
+    "x": 246,
+    "y": 67,
+    "w": 99,
+    "h": 62
+  },
+  "inning_roi": {
+    "x": 247,
+    "y": 127,
+    "w": 93,
+    "h": 30
+  }
+}

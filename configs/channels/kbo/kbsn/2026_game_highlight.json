@@ -1,0 +1,50 @@
+{
+  "config_id": "kbo_kbsn_2026_game_highlight",
+  "platform": "kbo",
+  "channel": "kbsn",
+  "year": 2026,
+  "content": "game_highlight",
+  "version": null,
+  "logo_template": "configs/channels/templates/kbsn_logo.png",
+  "notes": "ROI for kbo_kbsn_2026_game_highlight",
+  "frame_resolution": {
+    "w": 1920,
+    "h": 1080
+  },
+  "batter_name_roi": {
+    "x": 81,
+    "y": 211,
+    "w": 349,
+    "h": 35
+  },
+  "pitcher_name_roi": {
+    "x": 77,
+    "y": 170,
+    "w": 253,
+    "h": 42
+  },
+  "score_roi": {
+    "x": 75,
+    "y": 51,
+    "w": 200,
+    "h": 120
+  },
+  "count_roi": {
+    "x": 274,
+    "y": 134,
+    "w": 54,
+    "h": 36
+  },
+  "base_roi": {
+    "x": 331,
+    "y": 55,
+    "w": 98,
+    "h": 115
+  },
+  "inning_roi": {
+    "x": 273,
+    "y": 55,
+    "w": 58,
+    "h": 76
+  }
+}

@@ -1,0 +1,50 @@
+{
+  "config_id": "kbo_mbcsports_2026_game_highlight",
+  "platform": "kbo",
+  "channel": "mbcsports",
+  "year": 2026,
+  "content": "game_highlight",
+  "version": null,
+  "logo_template": "configs/channels/templates/mbcsports_logo.png",
+  "notes": "ROI for kbo_mbcsports_2026_game_highlight",
+  "frame_resolution": {
+    "w": 1920,
+    "h": 1080
+  },
+  "batter_name_roi": {
+    "x": 1393,
+    "y": 1000,
+    "w": 120,
+    "h": 50
+  },
+  "pitcher_name_roi": {
+    "x": 1089,
+    "y": 1003,
+    "w": 115,
+    "h": 44
+  },
+  "score_roi": {
+    "x": 546,
+    "y": 1002,
+    "w": 196,
+    "h": 46
+  },
+  "count_roi": {
+    "x": 841,
+    "y": 1002,
+    "w": 143,
+    "h": 45
+  },
+  "base_roi": {
+    "x": 604,
+    "y": 1002,
+    "w": 83,
+    "h": 48
+  },
+  "inning_roi": {
+    "x": 384,
+    "y": 1000,
+    "w": 81,
+    "h": 50
+  }
+}
