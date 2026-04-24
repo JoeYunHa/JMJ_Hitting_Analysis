@@ -29,6 +29,7 @@ ROI_LABELS = [
     "count_roi",
     "base_roi",
     "inning_roi",
+    "batter_zone_roi",
 ]
 
 
@@ -122,6 +123,18 @@ def main():
     parser.add_argument(
         "--display_width", default=1280, type=int, help="Max display width in pixels"
     )
+    parser.add_argument(
+        "--patch",
+        action="store_true",
+        help="Load existing config and only pick missing ROI labels (or those given by --labels)",
+    )
+    parser.add_argument(
+        "--labels",
+        nargs="+",
+        default=None,
+        metavar="LABEL",
+        help="Specific ROI labels to (re)pick. Defaults to all labels (or missing ones when --patch)",
+    )
     args = parser.parse_args()
 
     channels = VALID_PLATFORMS[args.platform]
@@ -155,8 +168,6 @@ def main():
         "notes": f"ROI for {config_id}",
     }
 
-    data = pick_rois(args.frame, ROI_LABELS, meta, display_width=args.display_width)
-
     filename = f"{args.year}_{args.content}"
     if args.version:
         filename += f"_{args.version}"
@@ -165,6 +176,37 @@ def main():
         out_path = Path(args.out_dir) / args.platform / f"{filename}.json"
     else:
         out_path = Path(args.out_dir) / args.platform / channel_key / f"{filename}.json"
+
+    # Determine which labels to pick
+    if args.labels:
+        invalid = [l for l in args.labels if l not in ROI_LABELS]
+        if invalid:
+            raise ValueError(f"Unknown label(s): {invalid}. Valid: {ROI_LABELS}")
+        labels_to_pick = args.labels
+    else:
+        labels_to_pick = ROI_LABELS
+
+    # --patch: load existing config and skip already-present labels
+    existing_data: dict = {}
+    if args.patch:
+        if not out_path.exists():
+            raise FileNotFoundError(f"--patch specified but config not found: {out_path}")
+        with open(out_path) as f:
+            existing_data = json.load(f)
+        if not args.labels:
+            labels_to_pick = [l for l in ROI_LABELS if l not in existing_data]
+            if not labels_to_pick:
+                print("All ROI labels already present in config. Nothing to patch.")
+                return
+        print(f"Patch mode: picking {labels_to_pick}")
+
+    new_rois = pick_rois(args.frame, labels_to_pick, meta, display_width=args.display_width)
+
+    # Merge: existing fields take priority for metadata; new ROIs overwrite
+    if existing_data:
+        data = {**existing_data, **{k: v for k, v in new_rois.items() if k in labels_to_pick}}
+    else:
+        data = new_rois
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
     with open(out_path, "w") as f:

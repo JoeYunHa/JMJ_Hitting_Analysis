@@ -13,6 +13,9 @@ pandas
 scipy
 tslearn             # DTW
 
+# database
+psycopg2-binary
+
 # utils
 tqdm
 python-dotenv
