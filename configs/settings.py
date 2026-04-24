@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -10,3 +11,7 @@ SEARCH_CONFIG = {
     "max_results": 50,
     "filter_keyword": "롯데",  # filter by title
 }
+
+DATA_DIR = Path("data")
+TARGET_NAME = "전민재"
+GAP_TOLERANCE_SEC = 5.0

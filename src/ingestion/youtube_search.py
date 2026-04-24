@@ -1,4 +1,5 @@
 from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError
 from configs.settings import YOUTUBE_API_KEY, SEARCH_CONFIG
 
 
@@ -13,16 +14,21 @@ def search_videos(
     seen_ids = set()
 
     while True:
-        resp = (
-            yt.playlistItems()
-            .list(
-                playlistId=playlist_id,
-                part="snippet",
-                maxResults=50,
-                pageToken=next_page_token,
+        try:
+            resp = (
+                yt.playlistItems()
+                .list(
+                    playlistId=playlist_id,
+                    part="snippet",
+                    maxResults=50,
+                    pageToken=next_page_token,
+                )
+                .execute()
             )
-            .execute()
-        )
+        except HttpError as e:
+            raise RuntimeError(
+                f"YouTube API error (status {e.resp.status}): {e}"
+            ) from e
 
         for item in resp.get("items", []):
             video_id = item["snippet"]["resourceId"]["videoId"]

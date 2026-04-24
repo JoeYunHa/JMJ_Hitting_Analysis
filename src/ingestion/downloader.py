@@ -1,10 +1,8 @@
 import subprocess
-import shutil
 from pathlib import Path
-from datetime import datetime
+from configs.settings import DATA_DIR
 from src.ingestion.tagger import tag_video_filename
 
-DATA_DIR = Path("data")
 DATA_DIR.mkdir(exist_ok=True)
 
 
