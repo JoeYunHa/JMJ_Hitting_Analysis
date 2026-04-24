@@ -10,8 +10,10 @@ _ocr = None
 def _get_ocr():
     global _ocr
     if _ocr is None:
+        import os
+        os.environ["FLAGS_use_mkldnn"] = "0"
         from paddleocr import PaddleOCR
-        _ocr = PaddleOCR(use_textline_orientation=True, lang="korean")
+        _ocr = PaddleOCR(use_textline_orientation=True, lang="korean", enable_mkldnn=False)
     return _ocr
 
 

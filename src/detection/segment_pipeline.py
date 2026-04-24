@@ -1,9 +1,8 @@
 import json
 from pathlib import Path
-import cv2
 from configs.settings import TARGET_NAME
 from src.utils.video import open_video
-from .channel_detector import load_all_configs, detect_channel
+from .channel_detector import load_all_configs, detect_channel_from_video
 from .ocr_extractor import extract_batter_segments
 from .swing_detector import _detect_swings, FlowConfig
 
@@ -23,13 +22,8 @@ def run_phase3(
     Path(output_dir).mkdir(parents=True, exist_ok=True)
     configs = load_all_configs()
 
-    # Step 1: detect channel
-    with open_video(video_path) as cap:
-        ret, first_frame = cap.read()
-    if not ret:
-        raise ValueError(f"Cannot read video: {video_path}")
-
-    config_id = detect_channel(first_frame, configs)
+    # Step 1: detect channel — sample multiple frames to find logo
+    config_id = detect_channel_from_video(video_path, configs)
     if config_id is None:
         raise ValueError(
             f"Channel not recognized for video: {video_path}. "
